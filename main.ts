@@ -25,12 +25,15 @@ if (!bytes.subarray(0, 8).equals(PNG_MAGIC)) {
   console.error("entry.png is not a PNG file");
   process.exit(1);
 }
-// The gate also caps dimensions at 1024x1024: read them from the IHDR
-// chunk (width at bytes 16-19, height at bytes 20-23, big-endian).
+// The gate wants exactly 1024x1024: read the size from the IHDR chunk
+// (width at bytes 16-19, height at bytes 20-23, big-endian) and reject
+// anything that is not exactly that size.
 const width = bytes.readUInt32BE(16);
 const height = bytes.readUInt32BE(20);
-if (width > 1024 || height > 1024) {
-  console.error("entry.png is over the 1024x1024 limit: " + width + "x" + height);
+if (width !== 1024 || height !== 1024) {
+  console.error(
+    "entry.png must be exactly 1024x1024, got: " + width + "x" + height,
+  );
   process.exit(1);
 }
 // A whole PNG must end with its IEND chunk (12 bytes: length 0, the
@@ -44,5 +47,14 @@ if (!bytes.subarray(bytes.length - 12).equals(IEND)) {
   process.exit(1);
 }
 mkdirSync(OUT_DIR, { recursive: true });
-copyFileSync(SRC, join(OUT_DIR, "entry.png"));
+const DEST = join(OUT_DIR, "entry.png");
+copyFileSync(SRC, DEST);
+// Confirm the copy landed intact: the output bytes must be identical to
+// the checked-in source, otherwise the grader would judge a different
+// file than the one in the repo.
+const copied = readFileSync(DEST);
+if (!copied.equals(bytes)) {
+  console.error("copied entry.png does not match the source bytes");
+  process.exit(1);
+}
 console.log("copied entry.png (" + bytes.length + " bytes) to " + OUT_DIR);
